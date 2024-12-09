@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_app/home_screen.dart';
 
 void main() {
-  runApp(const GoogleMapsApp());
+  runApp(const GeolocatorApp());
 }
-class GoogleMapsApp extends StatelessWidget {
-  const GoogleMapsApp({super.key});
+class GeolocatorApp extends StatelessWidget {
+  const GeolocatorApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       home: HomeScreen(),
     );
   }

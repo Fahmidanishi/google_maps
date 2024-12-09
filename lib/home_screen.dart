@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -7,131 +9,169 @@ class HomeScreen extends StatefulWidget {
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
+
 class _HomeScreenState extends State<HomeScreen> {
-  late GoogleMapController googleMapController;
+  @override
+  void initState() {
+    super.initState();
+    _listenCurrentLocation();
+  }
+
+  late GoogleMapController _googleMapController;
+  Position? _position;
+
+  LatLng? _latLng;
+  final Set<Marker> _marker = {};
+
+  Future<void> _getCurrentLocation() async {
+    final isGranted = await _isLocationPermissionGranted();
+    if (isGranted) {
+      final isEnable = await _checkGPSServiceEnable();
+      if (isEnable) {
+        Position currentPosition = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+              timeLimit: Duration(seconds: 10),
+              accuracy: LocationAccuracy.bestForNavigation),
+        );
+        _position = currentPosition;
+        _marker.add(
+          Marker(
+            markerId: const MarkerId('current-location'),
+            position: LatLng(_position!.latitude, _position!.longitude),
+            infoWindow: const InfoWindow(title: 'My current location'),
+          ),
+        );
+        setState(() {});
+      } else {
+        Geolocator.openLocationSettings();
+      }
+    } else {
+      final result = await _requestLocationPermission();
+      if (result) {
+        _getCurrentLocation();
+      } else {
+        Geolocator.openAppSettings();
+      }
+    }
+  }
+
+  Future<bool> _isLocationPermissionGranted() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  Future<bool> _requestLocationPermission() async {
+    LocationPermission locationPermission =
+    await Geolocator.requestPermission();
+    if (locationPermission == LocationPermission.always ||
+        locationPermission == LocationPermission.whileInUse) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  Future<bool> _checkGPSServiceEnable() async {
+    return await Geolocator.isLocationServiceEnabled();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Map Screen'),
+        title: const Text(
+          'Google Map',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.orangeAccent,
       ),
       body: GoogleMap(
-        mapType: MapType.satellite,
-        initialCameraPosition: const CameraPosition(
-          target: LatLng(
-            23.800507141895935,
-            90.3722262378507,
-          ),
-          zoom: 16,
-        ),
+        onTap: (LatLng latLng) {
+          _marker.add(
+            Marker(
+                draggable: true,
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueBlue),
+                markerId: const MarkerId('tap-marker'),
+                position: latLng,
+                infoWindow: InfoWindow(
+                    title: '${latLng.latitude},${latLng.longitude}')),
+          );
+          _latLng = latLng;
+          setState(() {});
+        },
         onMapCreated: (GoogleMapController controller) {
-          googleMapController = controller;
+          _googleMapController = controller;
         },
-        onTap: (LatLng? latLng) {
-          print(latLng);
-        },
-        zoomControlsEnabled: true,
-        zoomGesturesEnabled: true,
+        initialCameraPosition: const CameraPosition(
+          target: LatLng(0, 0),
+        ),
         trafficEnabled: true,
-        markers: <Marker>{
-          const Marker(
-            markerId: MarkerId('initial-position'),
-            position: LatLng(
-              23.800507141895935,
-              90.3722262378507,
-            ),
-          ),
-          Marker(
-              markerId: MarkerId('home'),
-              position: LatLng(
-                23.79873710772054,
-                90.36999430507421,
-              ),
-              infoWindow: InfoWindow(
-                title: 'Home',
-                onTap: () {
-                  print('On tapped home');
-                },
-              ),
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueBlue),
-              draggable: true,
-              onDragStart: (LatLng onStartLatLng) {
-                print('On start drag $onStartLatLng');
-              },
-              onDragEnd: (LatLng onStopLatLng) {
-                print('On end drag $onStopLatLng');
-              }),
-        },
-        circles: <Circle>{
-          Circle(
-              circleId: const CircleId('dengue-circle'),
-              fillColor: Colors.red.withOpacity(0.3),
-              center: const LatLng(23.799863244921745, 90.37016429007053),
-              radius: 300,
-              strokeColor: Colors.blue,
-              strokeWidth: 1,
-              visible: true,
-              onTap: () {
-                print('Entered into dengue zone');
-              }),
-          Circle(
-              circleId: const CircleId('blue-circle'),
-              fillColor: Colors.blue.withOpacity(0.3),
-              center: const LatLng(23.79357104678576, 90.37165727466345),
-              radius: 800,
-              strokeColor: Colors.blue,
-              strokeWidth: 1,
-              visible: true,
-              onTap: () {
-                print('Entered into dengue zone');
-              }),
-        },
+        markers: _marker,
         polylines: <Polyline>{
-          const Polyline(
-              polylineId: PolylineId('random'),
-              color: Colors.amber,
-              width: 4,
-              jointType: JointType.round,
+          if (_position != null && _latLng != null)
+            Polyline(
+              color: Colors.pinkAccent,
+              width: 3,
+              jointType: JointType.mitered,
+              polylineId: const PolylineId('initial-polyline'),
               points: <LatLng>[
-                LatLng(23.79409502479623, 90.3570295125246),
-                LatLng(23.788140632707165, 90.36082182079554),
-                LatLng(23.780215029962257, 90.36286599934101)
-              ])
-        },
-        polygons: <Polygon>{
-          Polygon(
-              polygonId: const PolygonId('poly-id'),
-              fillColor: Colors.pink.withOpacity(0.4),
-              strokeColor: Colors.black,
-              strokeWidth: 2,
-              points: const <LatLng>[
-                LatLng(23.77624299621742, 90.35490285605192),
-                LatLng(23.766188109400485, 90.35159468650818),
-                LatLng(23.760750414607198, 90.35569779574871),
-                LatLng(23.76167527755416, 90.36588918417692),
-                LatLng(23.771157658684977, 90.36988265812397),
-              ])
+                LatLng(_position!.latitude, _position!.longitude),
+                LatLng(_latLng!.latitude, _latLng!.longitude),
+              ],
+            ),
         },
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          googleMapController.animateCamera(
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: _buildFloatingActionButton(),
+    );
+  }
+
+  FloatingActionButton _buildFloatingActionButton() {
+    return FloatingActionButton(
+      onPressed: () async {
+        if (_position == null) {
+          await _getCurrentLocation();
+        }
+        if (_position != null) {
+          _googleMapController.animateCamera(
             CameraUpdate.newCameraPosition(
-              const CameraPosition(
+              CameraPosition(
                 zoom: 16,
-                target: LatLng(
-                  23.800507141895935,
-                  90.3722262378507,
-                ),
+                target: LatLng(_position!.latitude, _position!.longitude),
               ),
             ),
           );
-        },
-        child: const Icon(Icons.location_history),
-      ),
+        }
+      },
+      backgroundColor: Colors.orange,
+      child: const Icon(Icons.my_location),
     );
+  }
+
+  Future<void> _listenCurrentLocation() async {
+    final isGranted = await _isLocationPermissionGranted();
+    if (isGranted) {
+      final isEnable = await _checkGPSServiceEnable();
+      if (isEnable) {
+        Geolocator.getPositionStream().listen((pos) {
+          print(pos);
+        });
+      } else {
+        Geolocator.openLocationSettings();
+      }
+    } else {
+      final result = await _requestLocationPermission();
+      if (result) {
+        _getCurrentLocation();
+      } else {
+        Geolocator.openAppSettings();
+      }
+    }
   }
 }
